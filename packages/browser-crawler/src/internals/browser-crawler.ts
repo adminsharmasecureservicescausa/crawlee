@@ -248,6 +248,12 @@ export interface BrowserCrawlerOptions<
      * This can only be used when `useSessionPool` is set to `true`.
      */
     persistCookiesPerSession?: boolean;
+
+    /**
+     * Whether to run browser in headless mode. Defaults to `true`.
+     * Can be also set via {@link Configuration}.
+     */
+    headless?: boolean;
 }
 
 /**
@@ -306,7 +312,7 @@ export abstract class BrowserCrawler<
      */
     browserPool: BrowserPool<InternalBrowserPoolOptions>;
 
-    launchContext?: BrowserLaunchContext<LaunchOptions, unknown>;
+    launchContext: BrowserLaunchContext<LaunchOptions, unknown>;
 
     protected userProvidedRequestHandler!: BrowserCrawlerHandleRequest<Context>;
     protected navigationTimeoutMillis: number;
@@ -340,7 +346,7 @@ export abstract class BrowserCrawler<
             requestHandlerTimeoutSecs = 60,
             persistCookiesPerSession,
             proxyConfiguration,
-            launchContext,
+            launchContext = {},
             browserPoolOptions,
             preNavigationHooks = [],
             postNavigationHooks = [],
@@ -352,6 +358,7 @@ export abstract class BrowserCrawler<
 
             failedRequestHandler,
             handleFailedRequestFunction,
+            headless,
             ...basicCrawlerOptions
         } = options;
 
@@ -393,6 +400,11 @@ export abstract class BrowserCrawler<
         this.proxyConfiguration = proxyConfiguration;
         this.preNavigationHooks = preNavigationHooks;
         this.postNavigationHooks = postNavigationHooks;
+
+        if (headless != null) {
+            this.launchContext.launchOptions ??= {} as LaunchOptions;
+            (this.launchContext.launchOptions as Dictionary).headless = headless;
+        }
 
         if (this.useSessionPool) {
             this.persistCookiesPerSession = persistCookiesPerSession !== undefined ? persistCookiesPerSession : true;
@@ -682,7 +694,7 @@ export async function browserCrawlerEnqueueLinks({
  */
 // eslint-disable-next-line @typescript-eslint/ban-types
 async function extractUrlsFromPage(page: { $$eval: Function }, selector: string, baseUrl?: string): Promise<string[]> {
-    const urls = await page.$$eval(selector, (linkEls: HTMLLinkElement[]) => linkEls.map((link) => link.getAttribute('href')).filter((href) => !!href));
+    const urls = await page.$$eval(selector, (linkEls: HTMLLinkElement[]) => linkEls.map((link) => link.getAttribute('href')).filter((href) => !!href)) ?? [];
 
     return urls.map((href: string) => {
         // Throw a meaningful error when only a relative URL would be extracted instead of waiting for the Request to fail later.
